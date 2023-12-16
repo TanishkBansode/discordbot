@@ -1,0 +1,109 @@
+import difflib
+import discord
+import typing
+from discord.ext import commands
+
+import json
+from pathlib import Path  # Importing Path from pathlib for file operations
+
+intents = discord.Intents.all()
+intents.message_content = True
+
+bot = commands.Bot(command_prefix='/', intents=intents)
+asked = False
+global_answer = str()
+user_points = {}
+asker = str()
+
+# Function to save user_points to a JSON file
+def save_user_points():
+    with open('user_points.json', 'w') as file:
+        json.dump(user_points, file)
+
+# Function to load user_points from a JSON file
+def load_user_points():
+    global user_points
+    try:
+        with open('user_points.json', 'r') as file:
+            user_points = json.load(file)
+    except FileNotFoundError:
+        pass  # Ignore if the file doesn't exist
+
+@bot.event
+async def on_ready():
+    print("Bot Ready")
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} command(s)")
+    except Exception as e:
+        print("error")
+
+    # Load user_points when the bot starts
+    load_user_points()
+
+@bot.tree.command(name='ask')
+async def ask(interaction: discord.Interaction, *, question: str, answer: str, hint: typing.Optional[str] = ""):
+    global asked
+    global global_answer
+    global asker
+    global_answer = answer
+    asker = interaction.user.name
+
+    if asked:
+        await interaction.response.send_message("There's already a question asked. Please answer it before asking a new one.", ephemeral=True)
+    else:
+        asked = True
+        embed = discord.Embed(
+            title=question,
+            description=hint,
+            color=discord.Color.blue()
+        )
+        embed.set_author(name=interaction.user.name, icon_url=interaction.user.avatar.url)
+        await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name='answer')
+async def answer(interaction: discord.Interaction, *, answer: str):
+    global asked
+    global global_answer
+    global asker 
+    
+    similarity = difflib.SequenceMatcher(None, answer.lower(), global_answer.lower()).ratio()
+    similarity_threshold = 0.65
+    if asker == interaction.user.name:
+        await interaction.response.send_message(f'{interaction.user.mention}, You cannot answer your own question! ')
+    else:
+        if not asked:
+            await interaction.response.send_message("There's no question to be answered currently, you can use **/ask** to ask questions")
+        else:
+            user_name = interaction.user.name
+            if similarity >= similarity_threshold:
+                if user_name not in user_points:
+                    user_points[user_name] = 1  # Initialize points for the user if not present
+                else:
+                    user_points[user_name] += 1
+
+                await interaction.response.send_message(f'{interaction.user.mention} answered it. He gets +1 point.')
+                asked = False
+                save_user_points()  # Save user_points after each correct answer
+            else:
+                await interaction.response.send_message(f'{interaction.user.mention} tried, but it was incorrect.')
+
+@bot.tree.command(name='leaderboard')
+async def leaderboard(interaction: discord.Interaction):
+    global user_points
+    leaderboard_message = "Leaderboard:\n```\n"
+    
+    # Sort the user_points dictionary based on points
+    sorted_leaderboard = sorted(user_points.items(), key=lambda x: x[1], reverse=True)
+    
+    for position, (user, points) in enumerate(sorted_leaderboard, start=1):
+        leaderboard_message += f"{position}. {user}: {points} points\n"
+    
+    leaderboard_message += "```"
+    
+    await interaction.response.send_message(leaderboard_message)
+
+
+# Run the bot
+bot.run('Your API key')
