@@ -1,4 +1,4 @@
-#Bot Name: NotABot
+**Bot Name: NotABot**
 
 Description:
 Welcome to NotABot, your versatile quiz companion on Discord! NotABot adds an exciting quiz element to your server, allowing users to pose questions, answer them, and earn points. Compete with fellow server members to climb the leaderboard and showcase your knowledge in various subjects.
